@@ -1,0 +1,3 @@
+[template]
+src = "mscan_web.conf.tmpl"
+dest = "/opt/multiscanner/docker/distributed/mscan_web.conf"
