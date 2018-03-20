@@ -19,7 +19,7 @@ Listen {{ getenv "MS_HTTPS_PORT" "443" }}
     SSLCertificateKeyFile /usr/local/apache2/certs/msweb.key
 {{ end }}
 
-    LoadModule wsgi_module "/usr/local/lib/python3.4/dist-packages/mod_wsgi/server/mod_wsgi-py34.cpython-34m.so"
+    LoadModule wsgi_module "{{ getenv "MOD_WSGI_LOCATION" }}"
     WSGIDaemonProcess mscan_web threads=5 python-path=/opt/multiscanner/web
     WSGIScriptAlias / /opt/multiscanner/docker/distributed/mscan_web.wsgi
 
