@@ -1,6 +1,7 @@
 ServerName msweb
 
 {{ if eq (getenv "MS_USE_SSL") "true" }}
+# HTTP to HTTPS redirect
 <VirtualHost *:{{ getenv "MS_HTTP_PORT" "80" }}>
     ServerName msweb
     Redirect permanent / https://msweb/ 
@@ -9,6 +10,7 @@ ServerName msweb
 Listen {{ getenv "MS_HTTPS_PORT" "443" }}
 {{end}}
 
+# main listener, on HTTP or optionally HTTPS port
 <VirtualHost *:{{ if eq (getenv "MS_USE_SSL") "true" }}{{ getenv "MS_HTTPS_PORT" "443" }}{{else}}{{ getenv "MS_HTTP_PORT" "80" }}{{end}}>
     ServerName msweb
 
@@ -19,7 +21,7 @@ Listen {{ getenv "MS_HTTPS_PORT" "443" }}
     SSLCertificateKeyFile /usr/local/apache2/certs/msweb.key
 {{ end }}
 
-    LoadModule wsgi_module "{{ getenv "MOD_WSGI_LOCATION" }}"
+    LoadModule wsgi_module {{ getenv "MOD_WSGI_LOCATION" }}
     WSGIDaemonProcess mscan_web threads=5 python-path=/opt/multiscanner/web
     WSGIScriptAlias / /opt/multiscanner/docker/distributed/mscan_web.wsgi
 
