@@ -17,8 +17,8 @@ Listen {{ getenv "MS_HTTPS_PORT" "443" }}
 {{ if eq (getenv "MS_USE_SSL") "true" }}
     LoadModule ssl_module modules/mod_ssl.so
     SSLEngine on
-    SSLCertificateFile /usr/local/apache2/certs/msweb.crt
-    SSLCertificateKeyFile /usr/local/apache2/certs/msweb.key
+    SSLCertificateFile {{ getenv "apache_cert_folder_root" }}/{{ getenv "webserver_cert_file" }}
+    SSLCertificateKeyFile {{ getenv "apache_cert_folder_root" }}/{{ getenv "webserver_key_file" }}
 {{ end }}
 
     LoadModule wsgi_module {{ getenv "MOD_WSGI_LOCATION" }}

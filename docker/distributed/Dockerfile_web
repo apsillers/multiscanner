@@ -5,7 +5,11 @@ ENV MS_WEB_METADATA_FIELDS="['Submitter Name', 'Submission Description', 'Submit
     MS_WEB_TAGS="['Malware', 'Benign']" \
     MS_USE_SSL="true" \
     MS_HTTP_PORT="80" \
-    MS_HTTPS_PORT="443"
+    MS_HTTPS_PORT="443" \
+    MS_API_LOC="https://msrest:8080" \
+    apache_cert_folder_root="/usr/local/apache2/certs" \
+    webserver_cert_file="msweb.crt" \
+    webserver_key_file="msweb.key"
 
 # Add Prereqs: Python3, mod_wsgi, etc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -53,6 +57,9 @@ RUN MS_USE_SSL=$MS_USE_SSL \
     MS_HTTP_PORT=$MS_HTTP_PORT \
     MS_HTTPS_PORT=$MS_HTTPS_PORT \
     MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
+    apache_cert_folder_root=$apache_cert_folder_root \
+    webserver_cert_file=$webserver_cert_file \
+    webserver_key_file=$webserver_key_file \
     confd -onetime -backend env
 
 RUN cat /opt/multiscanner/docker/distributed/mscan_web.conf
@@ -62,6 +69,6 @@ RUN cat /opt/multiscanner/docker/distributed/mscan_web.conf >> /usr/local/apache
     && rm /opt/multiscanner/docker/distributed/mscan_web.conf
 
 # Start Apache
-EXPOSE 80 443
+EXPOSE $MS_HTTP_PORT $MS_HTTPS_PORT
 ENTRYPOINT ["/opt/mscan_web.sh"]
 CMD ["httpd-foreground"]
