@@ -1,14 +1,14 @@
-<VirtualHost *:8080>
+<VirtualHost *:{{ getenv "MS_API_PORT" "8080" }}>
     ServerName msrest
 
-#{% if servers_use_ssl == True %}
-#    LoadModule ssl_module {{ mod_ssl_system_module }}
-#    SSLEngine on
-#    SSLCertificateFile "{{ apache_cert_folder_root }}/{{ restserver_cert_file }}"
-#    SSLCertificateKeyFile "{{ apache_cert_folder_root }}/private/{{ restserver_cert_key_file }}"
-#{% endif %}
+    {{ if eq (getenv "MS_USE_SSL") "true" }}
+    LoadModule ssl_module modules/mod_ssl.so
+    SSLEngine on
+    SSLCertificateFile {{ getenv "apache_cert_folder_root" }}/{{ getenv "restserver_cert_file" }}
+    SSLCertificateKeyFile {{ getenv "apache_cert_folder_root" }}/private/{{ getenv "restserver_cert_key_file" }}
+    {{end}}
 
-    LoadModule wsgi_module {{ mod_wsgi_system_module }}
+    LoadModule wsgi_module {{ getenv "MOD_WSGI_LOCATION" }}
     WSGIDaemonProcess mscan_rest threads=5 python-path=/opt/multiscanner/utils
     WSGIScriptAlias / /opt/multiscanner/docker/distributed/mscan_rest.wsgi
 
@@ -29,7 +29,7 @@
         RewriteEngine On
         RewriteCond %{REQUEST_METHOD} OPTIONS
         RewriteRule ^(.*)$ $1 [R=200,L,ENV=ISOPTIONS:true]
-        SetEnvIf Origin "{{ ms_api_cors_regex }}" AccessControlAllowOrigin=$0
+        SetEnvIf Origin "{{ getenv "MS_API_CORS_REGEX" }}" AccessControlAllowOrigin=$0
         # Set the access-control-origin-allow only on OPTIONS requests; api.py adds the header to everything that gets
         # past the OPTIONS step
         Header always set Access-Control-Allow-Origin %{AccessControlAllowOrigin}e  env=ISOPTIONS

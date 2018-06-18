@@ -1,9 +1,14 @@
 FROM httpd:2.4
 LABEL maintainer="Austin West awest1339"
 
-ENV MS_API_PORT=8080 \
+ENV MS_USE_SSL="true" \
+    MS_API_PORT=8080 \
     MS_API_CORS_REGEX="https?://localhost" \
-    MS_UPLOAD_DIR="/mnt/samples"
+    MS_UPLOAD_DIR="/mnt/samples" \
+    apache_cert_folder_root="/usr/local/apache2/certs" \
+    webserver_cert_file="msrest.crt" \
+    webserver_key_file="msrest.key" \
+    mod_ssl_system_module="/usr/lib/apache2/modules/mod_ssl.so"
 
 # Add Prereqs: Python3, mod_wsgi, etc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -32,25 +37,39 @@ RUN chmod +x /usr/local/bin/confd \
 COPY . /opt/multiscanner
 
 # Configure Apache, install MultiScanner
-RUN cat /opt/multiscanner/docker/distributed/mscan_rest.conf >> /usr/local/apache2/conf/httpd.conf \
-    && rm /opt/multiscanner/docker/distributed/mscan_rest.conf \
-    # Create web log directory
-    && mkdir /var/log/mscanrest \
+RUN mkdir /var/log/mscanrest \
     # Create and use a mod_wsgi run directory
     && mkdir /var/run/wsgi \
-    && echo "WSGISocketPrefix /var/run/wsgi" >> /usr/local/apache2/conf/httpd.conf \
     # Move bootstrap script because permissions
     && mv /opt/multiscanner/docker/distributed/mscan_rest.sh /opt \
     # Install MultiScanner
     && /opt/multiscanner/install.sh \
     # Tell Apache where mod_wsgi is
-    && MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
-    && sed -i -r "s;\{\{ mod_wsgi_system_module \}\};$MOD_WSGI_LOCATION;g" /usr/local/apache2/conf/httpd.conf \
     # Enable the rewrite module (needed for CORS)
     && sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /usr/local/apache2/conf/httpd.conf \
     # Put files in the right place for confd
     && mv /opt/multiscanner/docker/distributed/*.toml /etc/confd/conf.d \
-    && mv /opt/multiscanner/docker/distributed/*.ini.tmpl /etc/confd/templates
+    && rm /etc/confd/conf.d/mscan_web.toml \
+    && mv /opt/multiscanner/docker/distributed/*.ini.tmpl /etc/confd/templates \
+    && mv /opt/multiscanner/docker/distributed/mscan_rest.conf.tmpl /etc/confd/templates
+
+RUN MS_API_PORT=$MS_API_PORT \
+    MS_API_CORS_REGEX=$MS_API_CORS_REGEX \
+    MS_UPLOAD_DIR=$MS_UPLOAD_DIR \
+    MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
+    MS_API_CORS_REGEX=$MS_API_CORS_REGEX \
+    MS_UPLOAD_DIR=$MS_UPLOAD_DIR \
+    apache_cert_folder_root=$apache_cert_folder_root \
+    webserver_cert_file=$webserver_cert_file \
+    webserver_key_file=$webserver_key_file \
+    confd -onetime -backend env
+
+RUN cat /opt/multiscanner/docker/distributed/mscan_rest.conf
+RUN cat /usr/local/apache2/conf/httpd.conf
+
+RUN cat /opt/multiscanner/docker/distributed/mscan_rest.conf >> /usr/local/apache2/conf/httpd.conf \
+    && echo "WSGISocketPrefix /var/run/wsgi" >> /usr/local/apache2/conf/httpd.conf \
+    && rm /opt/multiscanner/docker/distributed/mscan_rest.conf
 
 # Start Apache
 EXPOSE $MS_API_PORT
