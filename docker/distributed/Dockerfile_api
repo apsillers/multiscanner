@@ -53,19 +53,11 @@ RUN mkdir /var/log/mscanrest \
     && mv /opt/multiscanner/docker/distributed/*.ini.tmpl /etc/confd/templates \
     && mv /opt/multiscanner/docker/distributed/mscan_rest.conf.tmpl /etc/confd/templates
 
-RUN MS_API_PORT=$MS_API_PORT \
-    MS_API_CORS_REGEX=$MS_API_CORS_REGEX \
-    MS_UPLOAD_DIR=$MS_UPLOAD_DIR \
-    MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
-    MS_API_CORS_REGEX=$MS_API_CORS_REGEX \
-    MS_UPLOAD_DIR=$MS_UPLOAD_DIR \
-    apache_cert_folder_root=$apache_cert_folder_root \
-    webserver_cert_file=$webserver_cert_file \
-    webserver_key_file=$webserver_key_file \
+RUN MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
     confd -onetime -backend env
 
 RUN cat /opt/multiscanner/docker/distributed/mscan_rest.conf
-RUN cat /usr/local/apache2/conf/httpd.conf
+#RUN cat /usr/local/apache2/conf/httpd.conf
 
 RUN cat /opt/multiscanner/docker/distributed/mscan_rest.conf >> /usr/local/apache2/conf/httpd.conf \
     && echo "WSGISocketPrefix /var/run/wsgi" >> /usr/local/apache2/conf/httpd.conf \

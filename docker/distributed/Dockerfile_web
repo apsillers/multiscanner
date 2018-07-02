@@ -53,16 +53,11 @@ RUN mv /opt/multiscanner/docker/distributed/*.toml /etc/confd/conf.d \
     # Install MultiScanner
     && /opt/multiscanner/install.sh
 
-RUN MS_USE_SSL=$MS_USE_SSL \
-    MS_HTTP_PORT=$MS_HTTP_PORT \
-    MS_HTTPS_PORT=$MS_HTTPS_PORT \
-    MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
-    apache_cert_folder_root=$apache_cert_folder_root \
-    webserver_cert_file=$webserver_cert_file \
-    webserver_key_file=$webserver_key_file \
+
+RUN MOD_WSGI_LOCATION=$(mod_wsgi-express module-config | grep wsgi_module | cut -d '"' -f2) \
     confd -onetime -backend env
 
-RUN cat /opt/multiscanner/docker/distributed/mscan_web.conf
+#RUN cat /opt/multiscanner/docker/distributed/mscan_web.conf
 
 RUN cat /opt/multiscanner/docker/distributed/mscan_web.conf >> /usr/local/apache2/conf/httpd.conf \
     && echo "WSGISocketPrefix /var/run/wsgi" >> /usr/local/apache2/conf/httpd.conf \
