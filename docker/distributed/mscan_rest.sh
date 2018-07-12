@@ -7,7 +7,7 @@ confd -onetime -backend env
 sed -i -r "s/Listen 80/Listen $MS_API_PORT/" /usr/local/apache2/conf/httpd.conf
 
 # Set CORS regex
-sed -i -r "s;\{\{ ms_api_cors_regex \}\};$MS_API_CORS_REGEX;g" /usr/local/apache2/conf/httpd.conf
+#sed -i -r "s;\{\{ ms_api_cors_regex \}\};$MS_API_CORS_REGEX;g" /usr/local/apache2/conf/httpd.conf
 
 # Create sample upload directory
 mkdir $MS_UPLOAD_DIR

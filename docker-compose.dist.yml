@@ -1,10 +1,21 @@
-version: '3'
+version: '3.2'
 networks:
   ms:
 volumes:
   ms_volume:
   esdata:
   pgdata:
+secrets:
+# to enable HTTPS on the Web API, uncomment the next two `file:` lines and set the paths to your key and cert files
+  msrest.crt:
+    file: ./msrest.crt
+  msrest.key:
+    file: ./msrest.key
+# to enable HTTPS on the Web interface, uncomment the next two `file:` lines and set the paths to your key and cert files
+  msweb.crt:
+    file: ./msweb.crt
+  msweb.key:
+    file: ./msweb.key
 services:
   mselastic:
     image: "docker.elastic.co/elasticsearch/elasticsearch:5.6.5"
@@ -39,9 +50,9 @@ services:
       dockerfile: docker/distributed/Dockerfile_broker
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      # args:
-      #  - http_proxy
-      #  - https_proxy
+      args:
+       - http_proxy
+       - https_proxy
     ports:
      - "15672:15672"
     networks:
@@ -55,9 +66,9 @@ services:
       dockerfile: docker/distributed/Dockerfile_worker
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      # args:
-      #  - http_proxy
-      #  - https_proxy
+      args:
+       - http_proxy
+       - https_proxy
     networks:
      - ms
     volumes:
@@ -65,35 +76,57 @@ services:
     depends_on:
      - task_broker
   msweb:
+    secrets:
+      - msweb.crt
+      - msweb.key
     build:
       context: .
       dockerfile: docker/distributed/Dockerfile_web
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      # args:
-      #  - http_proxy
-      #  - https_proxy
+      args:
+       - http_proxy
+       - https_proxy
+       - MS_WEB_METADATA_FIELDS=['Submitter Name', 'Submission Description', 'Submitter Email', 'Submitter Organization', 'Submitter Phone']
+       - MS_WEB_TAGS="['Malware', 'Benign']"
+       - MS_USE_SSL=true
+       - MS_HTTP_PORT=80
+       - MS_HTTPS_PORT=443
+       - MS_API_LOC="https://msrest:8080"
+       - apache_cert_folder_root="/usr/local/apache2/certs"
+       - webserver_cert_file=/run/secrets/msweb.crt
+       - webserver_key_file=/run/secrets/msweb.key
     ports:
      - "80:80"
+     - "443:443"
     networks:
      - ms
   msrest:
+    secrets:
+      - msrest.crt
+      - msrest.key
     build:
       context: .
       dockerfile: docker/distributed/Dockerfile_api
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      # args:
-      #  - http_proxy
-      #  - https_proxy
+      args:
+       - http_proxy
+       - https_proxy
+       - MS_API_CORS_REGEX=https?://(localhost|msweb)
+       - MS_USE_SSL=true
+       - MS_API_PORT=8080
+       - MS_UPLOAD_DIR=/mnt/samples
+       - apache_cert_folder_root=/usr/local/apache2
+       - webserver_cert_file=/run/secrets/msrest.crt
+       - webserver_key_file=/run/secrets/msrest.key
+       - mod_ssl_system_module=/usr/lib/apache2/modules/mod_ssl.so
     ports:
      - "8080:8080"
     networks:
      - ms
     volumes:
      - ms_volume:/mnt/samples
-    environment:
-     - "MS_API_CORS_REGEX=https?://(localhost|msweb)"
     depends_on:
      - mselastic
      - task_db

@@ -4,8 +4,8 @@
     {{ if eq (getenv "MS_USE_SSL") "true" }}
     LoadModule ssl_module modules/mod_ssl.so
     SSLEngine on
-    SSLCertificateFile {{ getenv "apache_cert_folder_root" }}/{{ getenv "restserver_cert_file" }}
-    SSLCertificateKeyFile {{ getenv "apache_cert_folder_root" }}/private/{{ getenv "restserver_cert_key_file" }}
+    SSLCertificateFile {{ getenv "restserver_cert_file" }}
+    SSLCertificateKeyFile {{ getenv "restserver_cert_key_file" }}
     {{end}}
 
     LoadModule wsgi_module {{ getenv "MOD_WSGI_LOCATION" }}

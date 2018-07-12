@@ -1,14 +1,14 @@
 FROM httpd:2.4
 LABEL maintainer="Austin West awest1339"
 
-ENV MS_USE_SSL="true" \
-    MS_API_PORT=8080 \
-    MS_API_CORS_REGEX="https?://localhost" \
-    MS_UPLOAD_DIR="/mnt/samples" \
-    apache_cert_folder_root="/usr/local/apache2/certs" \
-    webserver_cert_file="msrest.crt" \
-    webserver_key_file="msrest.key" \
-    mod_ssl_system_module="/usr/lib/apache2/modules/mod_ssl.so"
+ARG MS_API_CORS_REGEX=https?://(localhost|msweb)
+ARG MS_USE_SSL=true
+ARG MS_API_PORT=8080
+ARG MS_UPLOAD_DIR=/mnt/samples
+ARG apache_cert_folder_root=/usr/local/apache2
+ARG webserver_cert_file=msrest.crt
+ARG webserver_key_file=msrest.key
+ARG mod_ssl_system_module=/usr/lib/apache2/modules/mod_ssl.so
 
 # Add Prereqs: Python3, mod_wsgi, etc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -63,7 +63,13 @@ RUN cat /opt/multiscanner/docker/distributed/mscan_rest.conf >> /usr/local/apach
     && echo "WSGISocketPrefix /var/run/wsgi" >> /usr/local/apache2/conf/httpd.conf \
     && rm /opt/multiscanner/docker/distributed/mscan_rest.conf
 
+RUN sed -i -r "s/Listen 80/Listen $MS_API_PORT/" /usr/local/apache2/conf/httpd.conf
+
+RUN mkdir $MS_UPLOAD_DIR
+RUN chown -R daemon:daemon /opt/multiscanner
+RUN chown -R daemon:daemon $MS_UPLOAD_DIR
+
 # Start Apache
 EXPOSE $MS_API_PORT
-ENTRYPOINT ["/opt/mscan_rest.sh"]
+
 CMD ["httpd-foreground"]

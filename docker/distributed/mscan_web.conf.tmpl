@@ -4,13 +4,13 @@ ServerName msweb
 # HTTP to HTTPS redirect
 <VirtualHost *:{{ getenv "MS_HTTP_PORT" "80" }}>
     ServerName msweb
-    Redirect temporary / https://msweb/ 
+    Redirect / https://msweb/ 
 </VirtualHost>
 
 Listen {{ getenv "MS_HTTPS_PORT" "443" }}
 {{end}}
 
-Listen {{ getenv "MS_HTTP_PORT" "80" }}
+#Listen {{ getenv "MS_HTTP_PORT" "80" }}
 
 # main listener, on HTTP or optionally HTTPS port
 <VirtualHost *:{{ if eq (getenv "MS_USE_SSL") "true" }}{{ getenv "MS_HTTPS_PORT" "443" }}{{else}}{{ getenv "MS_HTTP_PORT" "80" }}{{end}}>
@@ -19,8 +19,8 @@ Listen {{ getenv "MS_HTTP_PORT" "80" }}
 {{ if eq (getenv "MS_USE_SSL") "true" }}
     LoadModule ssl_module modules/mod_ssl.so
     SSLEngine on
-    SSLCertificateFile {{ getenv "apache_cert_folder_root" }}/{{ getenv "webserver_cert_file" }}
-    SSLCertificateKeyFile {{ getenv "apache_cert_folder_root" }}/{{ getenv "webserver_key_file" }}
+    SSLCertificateFile {{ getenv "webserver_cert_file" }}
+    SSLCertificateKeyFile {{ getenv "webserver_key_file" }}
 {{ end }}
 
     LoadModule wsgi_module {{ getenv "MOD_WSGI_LOCATION" }}
