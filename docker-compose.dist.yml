@@ -5,17 +5,17 @@ volumes:
   ms_volume:
   esdata:
   pgdata:
-secrets:
 # to enable HTTPS on the Web API, uncomment the next two `file:` lines and set the paths to your key and cert files
+secrets:
   msrest.crt:
-    file: ./msrest.crt
+#    file: ./msrest.crt
   msrest.key:
-    file: ./msrest.key
+#    file: ./msrest.key
 # to enable HTTPS on the Web interface, uncomment the next two `file:` lines and set the paths to your key and cert files
   msweb.crt:
-    file: ./msweb.crt
+#    file: ./msweb.crt
   msweb.key:
-    file: ./msweb.key
+#    file: ./msweb.key
 services:
   mselastic:
     image: "docker.elastic.co/elasticsearch/elasticsearch:5.6.5"
@@ -50,9 +50,9 @@ services:
       dockerfile: docker/distributed/Dockerfile_broker
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      args:
-       - http_proxy
-       - https_proxy
+      #args:
+      # - http_proxy
+      # - https_proxy
     ports:
      - "15672:15672"
     networks:
@@ -83,10 +83,10 @@ services:
       context: .
       dockerfile: docker/distributed/Dockerfile_web
       # If you are behind a proxy, you must uncomment
-      # the next 3 lines
+      # the http_proxy and https_proxy lines
       args:
-       - http_proxy
-       - https_proxy
+       #- http_proxy
+       #- https_proxy
        - MS_WEB_METADATA_FIELDS=['Submitter Name', 'Submission Description', 'Submitter Email', 'Submitter Organization', 'Submitter Phone']
        - MS_WEB_TAGS="['Malware', 'Benign']"
        - MS_USE_SSL=true
@@ -109,17 +109,17 @@ services:
       context: .
       dockerfile: docker/distributed/Dockerfile_api
       # If you are behind a proxy, you must uncomment
-      # the next 3 lines
+      # the http_proxy and https_proxy lines
       args:
-       - http_proxy
-       - https_proxy
+       #- http_proxy
+       #- https_proxy
        - MS_API_CORS_REGEX=https?://(localhost|msweb)
        - MS_USE_SSL=true
        - MS_API_PORT=8080
        - MS_UPLOAD_DIR=/mnt/samples
        - apache_cert_folder_root=/usr/local/apache2
-       - webserver_cert_file=/run/secrets/msrest.crt
-       - webserver_key_file=/run/secrets/msrest.key
+       - restserver_cert_file=/run/secrets/msrest.crt
+       - restserver_key_file=/run/secrets/msrest.key
        - mod_ssl_system_module=/usr/lib/apache2/modules/mod_ssl.so
     ports:
      - "8080:8080"
@@ -135,4 +135,4 @@ services:
     # The sleep is a workaround to make extra sure that
     # the ElasticSearch container is up before the api
     # attempts to connect to it
-    command: ["sleep 40; httpd-foreground"]
+    command: "httpd-foreground"

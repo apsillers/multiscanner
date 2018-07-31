@@ -6,8 +6,8 @@ ARG MS_USE_SSL=true
 ARG MS_API_PORT=8080
 ARG MS_UPLOAD_DIR=/mnt/samples
 ARG apache_cert_folder_root=/usr/local/apache2
-ARG webserver_cert_file=msrest.crt
-ARG webserver_key_file=msrest.key
+ARG restserver_cert_file=msrest.crt
+ARG restserver_key_file=msrest.key
 ARG mod_ssl_system_module=/usr/lib/apache2/modules/mod_ssl.so
 
 # Add Prereqs: Python3, mod_wsgi, etc.
@@ -68,6 +68,8 @@ RUN sed -i -r "s/Listen 80/Listen $MS_API_PORT/" /usr/local/apache2/conf/httpd.c
 RUN mkdir $MS_UPLOAD_DIR
 RUN chown -R daemon:daemon /opt/multiscanner
 RUN chown -R daemon:daemon $MS_UPLOAD_DIR
+
+RUN cat /usr/local/apache2/conf/httpd.conf
 
 # Start Apache
 EXPOSE $MS_API_PORT
