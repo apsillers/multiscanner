@@ -69,8 +69,6 @@ RUN mkdir $MS_UPLOAD_DIR
 RUN chown -R daemon:daemon /opt/multiscanner
 RUN chown -R daemon:daemon $MS_UPLOAD_DIR
 
-RUN cat /usr/local/apache2/conf/httpd.conf
-
 # Start Apache
 EXPOSE $MS_API_PORT
 
