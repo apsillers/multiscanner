@@ -50,9 +50,9 @@ services:
       dockerfile: docker/distributed/Dockerfile_broker
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      args:
-       - http_proxy
-       - https_proxy
+      #args:
+      # - http_proxy
+      # - https_proxy
     ports:
      - "15672:15672"
     networks:
@@ -66,9 +66,9 @@ services:
       dockerfile: docker/distributed/Dockerfile_worker
       # If you are behind a proxy, you must uncomment
       # the next 3 lines
-      args:
-       - http_proxy
-       - https_proxy
+      #args:
+      # - http_proxy
+      # - https_proxy
     networks:
      - ms
     volumes:
@@ -114,8 +114,8 @@ services:
       # If you are behind a proxy, you must uncomment
       # the http_proxy and https_proxy lines
       args:
-       - http_proxy
-       - https_proxy
+      # - http_proxy
+      # - https_proxy
        - MS_API_CORS_REGEX=https?://(localhost|msweb)
        - MS_USE_SSL=false
        - MS_API_PORT=8080
