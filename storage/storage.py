@@ -2,22 +2,29 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from builtins import *
-from future import standard_library
-standard_library.install_aliases()
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals, with_statement)
+
 import codecs
 import configparser
+import inspect
 import os
 import sys
 import threading
-import inspect
+from builtins import *  # noqa: F401,F403
+
+from future import standard_library
+
+standard_library.install_aliases()
+
 STORAGE_DIR = os.path.dirname(__file__)
 MS_WD = os.path.dirname(STORAGE_DIR)
+CONFIG = os.path.join(MS_WD, "storage.ini")
+
 if os.path.join(MS_WD, 'libs') not in sys.path:
     sys.path.append(os.path.join(MS_WD, 'libs'))
+
 import common
-CONFIG = os.path.join(MS_WD, "storage.ini")
 
 
 class ThreadCounter(object):
@@ -63,13 +70,13 @@ class Storage(object):
         self.config = config
 
     def setup(self):
-        pass
+        return True
 
     def store(self, results):
         raise NotImplementedError
 
     def teardown(self):
-        pass
+        return True
 
 
 class StorageHandler(object):
@@ -134,8 +141,7 @@ class StorageHandler(object):
         self.loaded_storage = loaded_storage
 
     def store(self, dictionary, wait=True):
-        """
-        Takes a dictionary and stores it in each of the active storage modules. If wait is False a thread object is returned.
+        """Stores dictionary in active storage module. If wait is False, a thread object is returned.
         """
         if wait:
             self._store_thread(dictionary)
@@ -195,7 +201,9 @@ def config_init(filepath, overwrite=False, storage_classes=None):
 
 
 def _rewrite_config(storage_classes, config_object, filepath):
-    for class_name in storage_classes:
+    keys = list(storage_classes.keys())
+    keys.sort()
+    for class_name in keys:
         conf = storage_classes[class_name].DEFAULTCONF
         config_object.add_section(class_name)
         for key in conf:
@@ -217,10 +225,15 @@ def _write_missing_config(config_object, filepath, storage_classes=None):
     if storage_classes is None:
         storage_classes = _get_storage_classes()
     ConfNeedsWrite = False
-    for module in sorted(storage_classes):
+    keys = list(storage_classes.keys())
+    keys.sort()
+    for module in keys:
+        if module in config_object:
+            continue
         try:
             conf = module.DEFAULTCONF
-        except:
+        except Exception as e:
+            # TODO: log exception
             continue
         ConfNeedsWrite = True
         config_object.add_section(module)
@@ -253,4 +266,6 @@ def _get_storage_classes(dir_path=STORAGE_DIR):
                 member = getattr(mod, member_name)
                 if inspect.isclass(member) and issubclass(member, Storage):
                     storage_classes[member_name] = member()
+    if 'Storage' in storage_classes:
+        del storage_classes['Storage']
     return storage_classes

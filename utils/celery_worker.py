@@ -4,12 +4,17 @@ $ celery -A celery_worker worker
 from the utils/ directory.
 '''
 
-import os
-import sys
 import codecs
 import configparser
+import os
+import sys
 from datetime import datetime
 from socket import gethostname
+
+from celery import Celery, Task
+from celery.schedules import crontab
+from celery.utils.log import get_task_logger
+
 MS_WD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Append .. to sys path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,14 +27,15 @@ if os.path.join(MS_WD, 'libs') not in sys.path:
 # Add the analytics dir to the sys.path. Allows import of ssdeep_analytics
 if os.path.join(MS_WD, 'analytics') not in sys.path:
     sys.path.insert(0, os.path.join(MS_WD, 'analytics'))
-import multiscanner
+
 import common
+import elasticsearch_storage
+import multiscanner
 import sql_driver as database
-from celery_batches import Batches
 from ssdeep_analytics import SSDeepAnalytic
 
-from celery import Celery
-from celery.schedules import crontab
+
+logger = get_task_logger(__name__)
 
 DEFAULTCONF = {
     'protocol': 'pyamqp',
@@ -70,104 +76,145 @@ app = Celery(broker='{0}://{1}:{2}@{3}/{4}'.format(
 app.conf.timezone = worker_config.get('tz')
 db = database.Database(config=db_config)
 
+
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
+    # Run ssdeep match analytic
     # Executes every morning at 2:00 a.m.
     sender.add_periodic_task(
         crontab(hour=2, minute=0),
         ssdeep_compare_celery.s(),
     )
 
-def celery_task(files, config=multiscanner.CONFIG):
+    # Delete old metricbeat indices
+    # Executes every morning at 3:00 a.m.
+    storage_conf_path = multiscanner.common.get_config_path(multiscanner.CONFIG, 'storage')
+    storage_conf = multiscanner.common.parse_config(storage_conf_path)
+    metricbeat_enabled = storage_conf.get('metricbeat_enabled', True)
+    if metricbeat_enabled:
+        sender.add_periodic_task(
+            crontab(hour=3, minute=0),
+            metricbeat_rollover.s(),
+        )
+
+
+class MultiScannerTask(Task):
     '''
-    Run multiscanner on the given file and store the results in the storage
-    handler(s) specified in the storage configuration file.
+    Class of tasks that defines call backs to handle signals
+    from celery
     '''
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        '''
+        When a task fails, update the task DB with a "Failed"
+        status. Dump a traceback to local logs
+        '''
+        logger.error('Task #{} failed'.format(args[2]))
+        logger.error('Traceback info:\n{}'.format(einfo))
+
+        # Initialize the connection to the task DB
+        db.init_db()
+
+        scan_time = datetime.now().isoformat()
+
+        # Update the task DB with the failure
+        db.update_task(
+            task_id=args[2],
+            task_status='Failed',
+            timestamp=scan_time,
+        )
+
+
+@app.task(base=MultiScannerTask)
+def multiscanner_celery(file_, original_filename, task_id, file_hash, metadata,
+                        config=multiscanner.CONFIG, module_list=None):
+    '''
+    Queue up multiscanner tasks
+
+    Usage:
+    from celery_worker import multiscanner_celery
+    multiscanner_celery.delay(full_path, original_filename, task_id,
+                              hashed_filename, metadata, config, module_list)
+    '''
+
+    # Initialize the connection to the task DB
+    db.init_db()
+
+    logger.info('\n\n{}{}Got file: {}.\nOriginal filename: {}.\n'.format('=' * 48, '\n', file_hash, original_filename))
+
     # Get the storage config
     storage_conf = multiscanner.common.get_config_path(config, 'storage')
     storage_handler = multiscanner.storage.StorageHandler(configfile=storage_conf)
 
-    resultlist = multiscanner.multiscan(list(files), configfile=config)
+    resultlist = multiscanner.multiscan(
+        [file_],
+        configfile=config,
+        module_list=module_list
+    )
     results = multiscanner.parse_reports(resultlist, python=True)
 
     scan_time = datetime.now().isoformat()
 
-    # Loop through files in a way compatible with Py 2 and 3, and won't be
-    # affected by changing keys to original filenames
-    for file_ in files:
-        original_filename = files[file_]['original_filename']
-        task_id = files[file_]['task_id']
-        file_hash = files[file_]['file_hash']
-        metadata = files[file_]['metadata']
-        # Get the Scan Config that the task was run with and
-        # add it to the task metadata
-        scan_config_object = configparser.SafeConfigParser()
-        scan_config_object.optionxform = str
-        scan_config_object.read(config)
-        full_conf = common.parse_config(scan_config_object)
-        sub_conf = {}
+    # Get the Scan Config that the task was run with and
+    # add it to the task metadata
+    scan_config_object = configparser.SafeConfigParser()
+    scan_config_object.optionxform = str
+    scan_config_object.read(config)
+    full_conf = common.parse_config(scan_config_object)
+    sub_conf = {}
+    # Count number of modules enabled out of total possible
+    # and add it to the Scan Metadata
+    total_enabled = 0
+    total_modules = len(full_conf.keys())
+
+    # Get the count of modules enabled from the module_list
+    # if it exists, else count via the config
+    if module_list:
+        total_enabled = len(module_list)
+    else:
         for key in full_conf:
             if key == 'main':
                 continue
             sub_conf[key] = {}
             sub_conf[key]['ENABLED'] = full_conf[key]['ENABLED']
-        results[file_]['Scan Metadata'] = {}
-        results[file_]['Scan Metadata']['Worker Node'] = gethostname()
-        results[file_]['Scan Metadata']['Scan Config'] = sub_conf
+            if sub_conf[key]['ENABLED'] is True:
+                total_enabled += 1
 
-        # Use the original filename as the value for the filename
-        # in the report (instead of the tmp path assigned to the file
-        # by the REST API)
-        results[original_filename] = results[file_]
-        del results[file_]
+    results[file_]['Scan Metadata'] = metadata
+    results[file_]['Scan Metadata']['Worker Node'] = gethostname()
+    results[file_]['Scan Metadata']['Scan Config'] = sub_conf
+    results[file_]['Scan Metadata']['Modules Enabled'] = '{} / {}'.format(
+        total_enabled, total_modules
+    )
+    results[file_]['Scan Metadata']['Scan Time'] = scan_time
+    results[file_]['Scan Metadata']['Task ID'] = task_id
 
-        results[original_filename]['Scan Time'] = scan_time
-        results[original_filename]['Metadata'] = metadata
-
-        # Update the task DB to reflect that the task is done
-        db.update_task(
-            task_id=task_id,
-            task_status='Complete',
-            timestamp=scan_time,
-        )
+    # Use the original filename as the value for the filename
+    # in the report (instead of the tmp path assigned to the file
+    # by the REST API)
+    results[original_filename] = results[file_]
+    del results[file_]
 
     # Save the reports to storage
-    storage_handler.store(results, wait=False)
+    storage_ids = storage_handler.store(results, wait=False)
     storage_handler.close()
+
+    # Only need to raise ValueError here,
+    # Further cleanup will be handled by the on_failure method
+    # of MultiScannerTask
+    if not storage_ids:
+        raise ValueError('Report failed to index')
+
+    # Update the task DB to reflect that the task is done
+    db.update_task(
+        task_id=task_id,
+        task_status='Complete',
+        timestamp=scan_time,
+    )
+
+    logger.info('Completed Task #{}'.format(task_id))
 
     return results
 
-
-@app.task(base=Batches, flush_every=api_config['batch_size'], flush_interval=api_config['batch_interval'])
-def multiscanner_celery(requests, *args, **kwargs):
-    '''
-    Queue up multiscanner tasks and then run a batch of them at a time for
-    better performance.
-
-    Usage:
-    from celery_worker import multiscanner_celery
-    multiscanner_celery.delay(full_path, original_filename, task_id, metdata,
-                              hashed_filename, config)
-    '''
-    # Initialize the connection to the task DB
-    db.init_db()
-
-    files = {}
-    for request in requests:
-        file_ = request.args[0]
-        original_filename = request.args[1]
-        task_id = request.args[2]
-        file_hash = request.args[3]
-        metadata = request.args[4]
-        # print('\n\n{}{}Got file: {}.\nOriginal filename: {}.\n'.format('='*48, '\n', file_hash, original_filename))
-        files[file_] = {
-            'original_filename': original_filename,
-            'task_id': task_id,
-            'file_hash': file_hash,
-            'metadata': metadata,
-        }
-
-    celery_task(files)
 
 @app.task()
 def ssdeep_compare_celery():
@@ -182,5 +229,43 @@ def ssdeep_compare_celery():
     ssdeep_analytic.ssdeep_compare()
 
 
+@app.task()
+def metricbeat_rollover(days, config=multiscanner.CONFIG):
+    '''
+    Clean up old Elastic Beats indices
+    '''
+    try:
+        # Get the storage config
+        storage_conf_path = multiscanner.common.get_config_path(config, 'storage')
+        storage_handler = multiscanner.storage.StorageHandler(configfile=storage_conf_path)
+        storage_conf = multiscanner.common.parse_config(storage_conf_path)
+
+        metricbeat_enabled = storage_conf.get('metricbeat_enabled', True)
+
+        if not metricbeat_enabled:
+            logger.debug('Metricbeat logging not enbaled, exiting...')
+            return
+
+        if not days:
+            days = storage_conf.get('metricbeat_rollover_days')
+        if not days:
+            raise NameError("name 'days' is not defined, check storage.ini for 'metricbeat_rollover_days' setting")
+
+        # Find Elastic storage
+        for handler in storage_handler.loaded_storage:
+            if isinstance(handler, elasticsearch_storage.ElasticSearchStorage):
+                ret = handler.delete_index(index_prefix='metricbeat', days=days)
+
+                if ret is False:
+                    logger.warn('Metricbeat Roller failed')
+                else:
+                    logger.info('Metricbeat indices older than {} days deleted'.format(days))
+    except Exception as e:
+        logger.warn(e)
+    finally:
+        storage_handler.close()
+
+
 if __name__ == '__main__':
+    logger.debug('Initializing celery worker...')
     app.start()

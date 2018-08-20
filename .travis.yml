@@ -5,9 +5,16 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
+env:
+  - MOZ_HEADLESS=1
+addons:
+  firefox: latest
+before_install:
+  - npm install -g geckodriver
 install:
   - yes "" | sudo -HE ./install.sh
   - pip install -r requirements.txt
   - python multiscanner.py init
 script:
+  - flake8 --exit-zero .
   - pytest

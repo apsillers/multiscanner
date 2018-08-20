@@ -1,12 +1,20 @@
 #!/usr/bin/env python
-from __future__ import division, absolute_import, with_statement, print_function
+from __future__ import (absolute_import, division, print_function,
+                        with_statement)
+
 import argparse
-import os
+import codecs
 import csv
 import math
+import os
 import struct
 import sys
+
 from tqdm import tqdm
+
+PY3 = False
+if sys.version_info[:1] == (3,):
+    PY3 = True
 
 
 def count_lines(path):
@@ -19,8 +27,24 @@ def count_lines(path):
     return lines
 
 
+# This makes it python2.7 compatible. Python 3 is fine on its own
+def unicode_csv_reader(unicode_csv_data, dialect=csv.excel, **kwargs):
+    # csv.py doesn't do Unicode; encode temporarily as UTF-8:
+    csv_reader = csv.reader(utf_8_encoder(unicode_csv_data),
+                            dialect=dialect, **kwargs)
+    for row in csv_reader:
+        # decode UTF-8 back to Unicode, cell by cell:
+        # TODO: Is this py3 compatible?
+        yield [unicode(cell, 'utf-8') for cell in row]  # noqa: F821; protected by PY3 check
+
+
+def utf_8_encoder(unicode_csv_data):
+    for line in unicode_csv_data:
+        yield line.encode('utf-8')
+
+
 def parse_nsrl(input_file, output_dir):
-    output = open(os.path.join(output_dir, 'hash_list'), 'wb')
+    output = open(os.path.join(output_dir, 'hash_list'), 'w')
     offset = open(os.path.join(output_dir, 'offsets'), 'wb')
 
     offset_size = 5
@@ -34,9 +58,11 @@ def parse_nsrl(input_file, output_dir):
 
     print('Starting to parse, this will take a while...', file=sys.stderr)
 
-    with open(input_file, 'r') as f:
-        reader = csv.reader(f)
-        reader.next()
+    with codecs.open(input_file, 'r', 'utf-8', errors='replace') as f:
+        if not PY3:
+            reader = unicode_csv_reader(f)
+        else:
+            reader = csv.reader(f)
         for line in tqdm(reader):
             if line[7] == '' and line[0] != last_hash:
                 last_hash = line[0]
@@ -50,11 +76,10 @@ def parse_nsrl(input_file, output_dir):
                     offset.seek(offset_val * 12)
                     offset.write(struct.pack('Q', output.tell()))
                     last = offset_val
-                output.write(line[0].lower()+'\t')
+                output.write(line[0].lower() + '\t')
                 output.write(line[1].lower() + '\t')
                 output.write(line[3])
                 count += 1
-                output.write('\n')
 
 
 def _parse_args():
@@ -67,6 +92,7 @@ def _parse_args():
 def _main():
     args = _parse_args()
     parse_nsrl(args.NSRLFile, output_dir=args.output)
+
 
 if __name__ == '__main__':
     _main()

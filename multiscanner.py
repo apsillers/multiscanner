@@ -3,26 +3,29 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from builtins import *
-from future import standard_library
-standard_library.install_aliases()
-import sys
-import os
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals, with_statement)
+
+__version__ = '1.2.0'
+
+import codecs
+import configparser
+import datetime
 import json
+import multiprocessing
+import os
+import random
 import re
 import shutil
-import time
-import datetime
-import random
 import string
-import threading
-import configparser
-import codecs
-import multiprocessing
+import sys
 import tempfile
-import storage
-import common
+import threading
+import time
+from builtins import *  # noqa: F401,F403
+
+from future import standard_library
+standard_library.install_aliases()
 
 PY3 = False
 if sys.version_info < (2, 7) or sys.version_info > (4,):
@@ -45,6 +48,11 @@ CONFIG = os.path.join(MS_WD, "config.ini")
 # The directory where the modules are kept
 MODULEDIR = os.path.join(MS_WD, "modules")
 
+import common   # noqa: F401
+import storage
+from common import (basename, convert_encoding, load_module, parse_config,
+                    parseDir, parseFileList, queue2list)
+
 # The default configuration options for the main script
 DEFAULTCONF = {
     "copyfilesto": False,
@@ -55,14 +63,6 @@ DEFAULTCONF = {
 }
 
 VERBOSE = False
-
-from common import parseDir
-from common import parseFileList
-from common import parse_config
-from common import basename
-from common import convert_encoding
-from common import queue2list
-from common import load_module
 
 
 class _Print():
@@ -76,7 +76,10 @@ class _Print():
             self.real_print(*args, **kwargs)
         finally:
             self.lock.release()
+
+
 print = _Print()
+
 
 class _Thread(threading.Thread):
     """The threading.Thread class with some more cowbell"""
@@ -181,7 +184,8 @@ def _run_module(modname, mod, filelist, threadDict, global_module_interface, con
     if not conf:
         try:
             conf = mod.DEFAULTCONF
-        except:
+        except Exception as e:
+            # TODO: log exception
             pass
 
     required = None
@@ -353,8 +357,14 @@ def _start_module_threads(filelist, ModuleList, config, global_module_interface)
     for module in ModuleList:
         if module.endswith(".py"):
             modname = os.path.basename(module[:-3])
+
+            # If the module is disabled we don't mess with it further to prevent spamming errors on screen
+            if modname in config:
+                if not config[modname].get('ENABLED', True):
+                    continue
+
             moddir = os.path.dirname(module)
-            mod = load_module(os.path.basename(module.split('.')[0]), [moddir])
+            mod = load_module(os.path.basename(module).split('.')[0], [moddir])
             if not mod:
                 print(module, " not a valid module...")
                 continue
@@ -364,7 +374,8 @@ def _start_module_threads(filelist, ModuleList, config, global_module_interface)
                     try:
                         conf = mod.DEFAULTCONF
                         conf.update(config[modname])
-                    except:
+                    except Exception as e:
+                        # TODO: log exception
                         conf = config[modname]
                     # Remove _load_default from config
                     if '_load_default' in conf:
@@ -376,9 +387,12 @@ def _start_module_threads(filelist, ModuleList, config, global_module_interface)
             if not conf:
                 try:
                     conf = mod.DEFAULTCONF
-                except:
+                except Exception as e:
+                    # TODO: log exception
                     pass
-            thread = _Thread(target=_run_module, args=(modname, mod, filelist, ThreadDict, global_module_interface, conf))
+            thread = _Thread(
+                target=_run_module,
+                args=(modname, mod, filelist, ThreadDict, global_module_interface, conf))
             thread.name = modname
             thread.setDaemon(True)
             ThreadList.append(thread)
@@ -399,14 +413,15 @@ def _write_missing_module_configs(ModuleList, Config, filepath=CONFIG):
     ModuleList.sort()
     for module in ModuleList:
         if module.endswith(".py"):
-            modname = os.path.basename(module.split('.')[0])
+            modname = os.path.basename(module).split('.')[0]
             moddir = os.path.dirname(module)
             if modname not in Config.sections():
-                mod = load_module(os.path.basename(module.split('.')[0]), [moddir])
+                mod = load_module(os.path.basename(module).split('.')[0], [moddir])
                 if mod:
                     try:
                         conf = mod.DEFAULTCONF
-                    except:
+                    except Exception as e:
+                        # TODO: log exception
                         continue
                     ConfNeedsWrite = True
                     Config.add_section(modname)
@@ -439,13 +454,14 @@ def _rewrite_config(ModuleList, Config, filepath=CONFIG):
     ModuleList.sort()
     for module in ModuleList:
         if module.endswith(".py"):
-            modname = os.path.basename(module.split('.')[0])
+            modname = os.path.basename(module).split('.')[0]
             moddir = os.path.dirname(module)
-            mod = load_module(os.path.basename(module.split('.')[0]), [moddir])
+            mod = load_module(os.path.basename(module).split('.')[0], [moddir])
             if mod:
                 try:
                     conf = mod.DEFAULTCONF
-                except:
+                except Exception as e:
+                    # TODO: log exception
                     continue
                 Config.add_section(modname)
                 for key in conf:
@@ -529,6 +545,7 @@ def multiscan(Files, recursive=False, configregen=False, configfile=CONFIG, conf
     configregen - If True a new config file will be created overwriting the old
     configfile - What config file to use. Can be None.
     config - A dictionary containing the configuration options to be used.
+    module_list - A list of file paths to be used as modules. Each string should end in .py
     """
     # Redirect stdout to stderr
     stdout = sys.stdout
@@ -621,7 +638,7 @@ def multiscan(Files, recursive=False, configregen=False, configfile=CONFIG, conf
                 i = 0
                 thread_wait_list.remove(thread)
                 if VERBOSE:
-                    print(thread.name, "took", thread.endtime-thread.starttime)
+                    print(thread.name, "took", thread.endtime - thread.starttime)
         if i == 15:
             i = 0
             if VERBOSE:
@@ -757,7 +774,7 @@ def _subscan(subscan_list, config, main_config, module_list, global_module_inter
                 i = 0
                 thread_wait_list.remove(thread)
                 if VERBOSE:
-                    print(thread.name, "took", thread.endtime-thread.starttime)
+                    print(thread.name, "took", thread.endtime - thread.starttime)
         if i == 15:
             i = 0
             if VERBOSE:
@@ -820,18 +837,31 @@ def _parse_args():
     import argparse
     # argparse stuff
     parser = argparse.ArgumentParser(description="Analyse files against multiple engines")
-    parser.add_argument("-c", "--config", help="The config file to use", required=False, default=CONFIG)
-    parser.add_argument('-j', '--json', help="The json file to write", required=False, metavar="filepath", default=None)
-    parser.add_argument("-m", "--metadata", help="This will include the metadata section from the report", action="store_true")
-    parser.add_argument('-n', '--numberper', help="The max number of files per report", required=False, metavar="num", default=200, type=int)
-    parser.add_argument("-r", "--recursive", action="store_true", help="Recursively parse folders for files to scan")
-    parser.add_argument("-z", "--extractzips", action="store_true", help="If any zip files are detected, extract them and scan the contents")
-    parser.add_argument("-p", "--password", help="Password to unzip any archives listed", default="")
-    parser.add_argument("-s", "--show", action="store_true", help="Print report to screen")
-    parser.add_argument("-u", "--ugly", help="If set the printed json will not have whitespace", action="store_true")
+    parser.add_argument("-c", "--config", required=False, default=CONFIG,
+                        help="The config file to use")
+    parser.add_argument('-j', '--json', required=False, metavar="filepath", default=None,
+                        help="The json file to write")
+    parser.add_argument("-m", "--metadata", action="store_true",
+                        help="This will include the metadata section from the report")
+    parser.add_argument('-n', '--numberper', required=False, metavar="num", default=200, type=int,
+                        help="The max number of files per report")
+    parser.add_argument("-r", "--recursive", action="store_true",
+                        help="Recursively parse folders for files to scan")
+    parser.add_argument('-t', '--tag', required=False, metavar="tag", default=None,
+                        help="Tags to include in the report.", action='append')
+    parser.add_argument("-z", "--extractzips", action="store_true",
+                        help="If any zip files are detected, extract them and scan the contents")
+    parser.add_argument("-p", "--password", default="",
+                        help="Password to unzip any archives listed")
+    parser.add_argument("-s", "--show", action="store_true",
+                        help="Print report to screen")
+    parser.add_argument("-u", "--ugly", action="store_true",
+                        help="If set the printed json will not have whitespace")
     parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("--resume", action="store_true", help="Read in the report file and continue where we left off")
-    parser.add_argument('Files', help="Files and Directories to analyse", nargs='+')
+    parser.add_argument("--resume", action="store_true",
+                        help="Read in the report file and continue where we left off")
+    parser.add_argument('Files', nargs='+',
+                        help="Files and Directories to analyse")
     return parser.parse_args()
 
 
@@ -971,15 +1001,34 @@ def _main():
         # For windows compatibility
         try:
             username = os.getlogin()
-        except:
+        except Exception as e:
+            # TODO: log exception
             username = os.getenv('USERNAME')
 
-        results.append(([], {"Name": "MultiScanner",
-            "Start Time": starttime,
-            "End Time": endtime,
-            # "Command Line":list2cmdline(sys.argv),
-            "Run by": username
-        }))
+        # Add metadata to the scan
+        results.append((
+            [],
+            {
+                "Name": "MultiScanner",
+                "Start Time": starttime,
+                "End Time": endtime,
+                # "Command Line":list2cmdline(sys.argv),
+                "Run by": username
+            }
+        ))
+
+        # Add tags if present
+        if args.tag:
+            tag_results = []
+            for filename in filelist:
+                tag_results.append((filename, args.tag))
+            results.append((
+                tag_results,
+                {
+                    "Name": "tags",
+                    "Type": "Metadata"
+                }
+            ))
 
         if args.show or not stdout.isatty():
             # TODO: Make this output something readable

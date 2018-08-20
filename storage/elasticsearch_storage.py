@@ -1,13 +1,16 @@
 '''
 Storage module that will interact with elasticsearch.
 '''
+import json
 import os
+import re
 from datetime import datetime
 from uuid import uuid4
+
+import curator
+
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch.exceptions import TransportError
-import re
-import json
 
 import storage
 
@@ -70,6 +73,8 @@ class ElasticSearchStorage(storage.Storage):
         'port': 9200,
         'index': 'multiscanner_reports',
         'doc_type': 'report',
+        'metricbeat_enabled': True,
+        'metricbeat_rollover_days': 7,
     }
 
     def setup(self):
@@ -138,7 +143,7 @@ class ElasticSearchStorage(storage.Storage):
                         }
                     }
                     dedot(ctx);"""
-                }
+            }
             self.es.ingest.put_pipeline(id='dedot', body={
                 'description': 'Replace dots in field names with underscores.',
                 'processors': [
@@ -209,8 +214,9 @@ class ElasticSearchStorage(storage.Storage):
                 print('Failed to index that report!\n{}'.format(e))
                 report_body_fail = {
                     'ERROR': 'Failed to index the full report in Elasticsearch',
-                    'Scan Time': report[filename]['Scan Time']
                 }
+                if 'Scan Time' in report[filename]:
+                    report_body_fail['Scan Time'] = report[filename]['Scan Time']
                 report_result = self.es.index(index=self.index, doc_type=self.doc_type,
                                               body=report_body_fail,
                                               parent=sample_id, pipeline='dedot')
@@ -275,7 +281,7 @@ class ElasticSearchStorage(storage.Storage):
                         }},
                         {
                             "term": {
-                                "Scan Time": ts
+                                "Scan Metadata.Scan Time": ts
                             }
                         }
                     ]
@@ -352,7 +358,8 @@ class ElasticSearchStorage(storage.Storage):
                 id=sample_id, body=script
             )
             return result
-        except:
+        except Exception as e:
+            # TODO: log exception
             return None
 
     def remove_tag(self, sample_id, tag):
@@ -373,7 +380,8 @@ class ElasticSearchStorage(storage.Storage):
                 id=sample_id, body=script
             )
             return result
-        except:
+        except Exception as e:
+            # TODO: log exception
             return None
 
     def get_tags(self):
@@ -436,7 +444,8 @@ class ElasticSearchStorage(storage.Storage):
                 id=note_id, parent=sample_id
             )
             return result
-        except:
+        except Exception as e:
+            # TODO: log exception
             return None
 
     def add_note(self, sample_id, data):
@@ -477,8 +486,41 @@ class ElasticSearchStorage(storage.Storage):
                 id=report_id
             )
             return True
-        except:
+        except Exception as e:
+            # TODO: log exception
+            return False
+
+    def delete_by_task_id(self, task_id):
+        query = {
+            "query": {
+                "term": {
+                    "Scan Metadata.Task ID": task_id
+                }
+            }
+        }
+
+        try:
+            self.es.delete_by_query(
+                index=self.index, doc_type=self.doc_type, body=query
+            )
+            return True
+        except Exception as e:
+            # TODO: log exception
             return False
 
     def teardown(self):
         pass
+
+    def delete_index(self, index_prefix, days):
+        '''
+        Delete index equal to or older than days.
+        '''
+        try:
+            ilo = curator.IndexList(self.es)
+            ilo.filter_by_regex(kind='prefix', value=index_prefix)
+            ilo.filter_by_age(source='name', direction='older', timestring='%Y.%m.%d', unit='days', unit_count=days)
+            delete_indices = curator.DeleteIndices(ilo)
+            delete_indices.do_action()
+        except Exception as e:
+            # TODO: log exception
+            return False

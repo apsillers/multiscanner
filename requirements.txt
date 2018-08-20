@@ -5,14 +5,18 @@ configparser
 bitstring
 boltons
 git+https://github.com/knowmalware/pehash.git#egg=pehash
+mmbot
 paramiko
 pefile
 pyclamd
+pyimpfuzzy
 python-magic
 requests
 ssdeep
 tika
 yara-python
+#Required for STIX2 content
+stix2
 #Required for PDF
 reportlab
 #Required by API
@@ -24,12 +28,19 @@ sqlalchemy-utils
 sqlalchemy-datatables
 #Required by storage modules
 elasticsearch>=5.0.0,<6.0.0
+elasticsearch-curator
 pymongo
 #Required for distributed
 celery
 flask_cors
 #Required by tests
+Flask-Testing
+pathlib
 pytest
 mock
+selenium
+#Requred by dev
+flake8
+pre-commit
 #Required by utils
 tqdm

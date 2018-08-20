@@ -3,14 +3,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 import json
-import urllib
 try:
     from urllib2 import urlopen
-except:
+except ImportError:
     from urllib.request import urlopen
 try:
     from urllib import urlencode
-except:
+except ImportError:
     from urllib.parse import urlencode
 import time
 
@@ -23,7 +22,8 @@ REQUIRES = ["MD5"]
 DEFAULTCONF = {
     'apikey': None,
     'ENABLED': True
-    }
+}
+
 
 def check(conf=DEFAULTCONF):
     if not conf['ENABLED']:
@@ -34,8 +34,9 @@ def check(conf=DEFAULTCONF):
         return False
     return True
 
+
 def scan(filelist, conf=DEFAULTCONF):
-    #Check for key rotation
+    # Check for key rotation
     apikey = conf['apikey']
     rotkey = False
     if isinstance(conf['apikey'], list):
@@ -81,6 +82,7 @@ def scan(filelist, conf=DEFAULTCONF):
     metadata["Include"] = False
     return (results, metadata)
 
+
 def _vt_report(report, md5name):
     if report['response_code'] == 0:
         return None
@@ -90,8 +92,8 @@ def _vt_report(report, md5name):
         del report['verbose_msg']
         return (fname, report)
 
+
 def _repeatlist(data):
     while True:
         for d in data:
             yield d
-

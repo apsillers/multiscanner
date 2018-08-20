@@ -21,6 +21,7 @@ def recursive_dir_list(path, exclude=['.pyc', '__pycache__']):
             ret.append(item)
     return ret
 
+
 to_walk = ['docs', 'etc', 'libs', 'modules', 'storage', 'utils']
 data_files = []
 for directory in to_walk:
@@ -28,7 +29,7 @@ for directory in to_walk:
 
 setup(
     name='multiscanner',
-    version='0.9.2',
+    version='1.2.0',
     url='https://github.com/MITRECND/multiscanner',
     license='MPL 2.0',
     author='Drew Bonasera',
@@ -48,6 +49,8 @@ setup(
         'python-magic',
         'requests',
         'ssdeep',
+        # Required for STIX2 content
+        'stix2',
         # Required by PDF
         'reportlab',
         # Required by API
@@ -59,6 +62,6 @@ setup(
         'pymongo',
     ],
     entry_points={
-        'console_scripts': ['multiscanner=multiscanner.multiscanner:_main']
+        'console_scripts': ['multiscanner=multiscanner:_main']
     }
 )
