@@ -87,8 +87,8 @@ services:
       # If you are behind a proxy, you must uncomment
       # the http_proxy and https_proxy lines
       args:
-       - http_proxy
-       - https_proxy
+       #- http_proxy
+       #- https_proxy
        - MS_WEB_METADATA_FIELDS=['Submitter Name', 'Submission Description', 'Submitter Email', 'Submitter Organization', 'Submitter Phone']
        - MS_WEB_TAGS="['Malware', 'Benign']"
        - MS_USE_SSL=false
