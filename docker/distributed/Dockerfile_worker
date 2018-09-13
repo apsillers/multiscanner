@@ -6,11 +6,13 @@ COPY . /opt/multiscanner
 
 # Add confd, install MultiScanner
 ADD https://github.com/kelseyhightower/confd/releases/download/v0.14.0/confd-0.14.0-linux-amd64 /usr/local/bin/confd
+ADD https://github.com/lief-project/LIEF/releases/download/0.8.3/lief-0.8.3-py3.6-linux.egg /root/lief-0.8.3-py3.6-linux.egg
 RUN chmod +x /usr/local/bin/confd \
     && mkdir -p /etc/confd/conf.d /etc/confd/templates \
     # Put files in the right place for confd
     && mv /opt/multiscanner/docker/distributed/*.toml /etc/confd/conf.d \
-    && mv /opt/multiscanner/docker/distributed/*.ini.tmpl /etc/confd/templates \
+    && mv /opt/multiscanner/docker/distributed/*.tmpl /etc/confd/templates \
+    && confd -onetime -backend env \
     # Install MultiScanner
     && /opt/multiscanner/install.sh \
     # Move bootstrap script because permissions
