@@ -17,6 +17,7 @@ RUN chmod +x /usr/local/bin/confd \
     && /opt/multiscanner/install.sh \
     # Move bootstrap script because permissions
     && mv /opt/multiscanner/docker/distributed/mscan_worker.sh /opt \
+    && chmod +x /opt/mscan_worker.sh \
     # Add non-root user
     && groupadd -r multiscanner \
     && useradd -m -g multiscanner -s /sbin/nologin -c "MultiScanner user" multiscanner \
