@@ -1,4 +1,5 @@
 {
+    "template":"multiscanner_template",
     "index_patterns": "multiscanner_reports",
     "settings": {
         "index": {

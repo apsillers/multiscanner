@@ -98,7 +98,9 @@ class ElasticSearchStorage(storage.Storage):
         # Create the index if it doesn't exist
         es_indices = self.es.indices
         # Add the template for Cuckoo
+        print("****** Opening " + ES_TEMPLATE)
         with open(ES_TEMPLATE, 'r') as file_:
+            print("****** Reading " + ES_TEMPLATE)
             template = json.loads(file_.read())
         if not es_indices.exists_template(ES_TEMPLATE_NAME):
             es_indices.put_template(

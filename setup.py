@@ -49,14 +49,20 @@ setup(
         'python-magic',
         'requests',
         'ssdeep',
+        'rarfile',
         # Required for STIX2 content
         'stix2',
         # Required by PDF
         'reportlab',
         # Required by API
         'flask',
+        'flask_cors',
         'sqlalchemy',
         'sqlalchemy-utils',
+        'sqlalchemy-datatables',
+        'celery',
+        'elasticsearch-curator',
+        'psycopg2',
         # Required by storage modules
         'elasticsearch',
         'pymongo',

@@ -118,6 +118,7 @@ services:
       # - https_proxy
        - MS_API_CORS_REGEX=https?://(localhost|msweb)
        - MS_USE_SSL=false
+       - MS_WEB_LOC=http://msweb:80/
        - MS_API_PORT=8080
        - MS_UPLOAD_DIR=/mnt/samples
        - restserver_cert_file=/run/secrets/msrest.crt
