@@ -1,6 +1,6 @@
 {
     "template":"multiscanner_template",
-    "index_patterns": "multiscanner_reports",
+    "index_patterns": ["multiscanner_reports"],
     "settings": {
         "index": {
             "mapping.coerce": true,
